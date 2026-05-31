@@ -1,17 +1,10 @@
-try:
-    __import__("pysqlite3")
-    import sys
-    sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
-except Exception:
-    pass
-
 import os
 import re
 from dotenv import load_dotenv
 from google import genai
-import chromadb
 from pypdf import PdfReader
 import streamlit as st
+import numpy as np
 
 load_dotenv()
 api_key = os.environ.get("GEMINI_API_KEY")
@@ -22,7 +15,9 @@ if not api_key:
         api_key = None
 
 ai = genai.Client(api_key=api_key)
-db = chromadb.PersistentClient(path="chroma_db")
+
+EMBED_MODEL = "gemini-embedding-001"
+CHAT_MODEL = "gemini-2.5-flash-lite"
 
 
 def make_chunks(text):
@@ -40,6 +35,26 @@ def make_chunks(text):
     if len(current.strip()) > 50:
         chunks.append(current.strip())
     return chunks
+
+
+def embed_texts(texts):
+    vectors = []
+    for i in range(0, len(texts), 50):
+        batch = texts[i:i + 50]
+        result = ai.models.embed_content(model=EMBED_MODEL, contents=batch)
+        for e in result.embeddings:
+            vectors.append(np.array(e.values))
+    return vectors
+
+
+def top_chunks(question, chunks, vectors, k=8):
+    q = ai.models.embed_content(model=EMBED_MODEL, contents=question)
+    qv = np.array(q.embeddings[0].values)
+    scores = []
+    for v in vectors:
+        scores.append(float(np.dot(qv, v) / (np.linalg.norm(qv) * np.linalg.norm(v))))
+    order = sorted(range(len(scores)), key=lambda idx: scores[idx], reverse=True)
+    return [chunks[idx] for idx in order[:k]]
 
 
 st.set_page_config(page_title="Research Paper Q&A", layout="centered")
@@ -86,13 +101,9 @@ if uploaded_file and st.button("Process PDF", type="primary"):
         reader = PdfReader(uploaded_file)
         all_text = "\n".join((page.extract_text() or "") for page in reader.pages)
         chunks = make_chunks(all_text)
-        try:
-            db.delete_collection("uploaded")
-        except Exception:
-            pass
-        collection = db.get_or_create_collection("uploaded")
-        ids = ["chunk_" + str(i) for i in range(len(chunks))]
-        collection.upsert(documents=chunks, ids=ids)
+        vectors = embed_texts(chunks)
+        st.session_state["chunks"] = chunks
+        st.session_state["vectors"] = vectors
     st.caption("Processed " + str(len(chunks)) + " sections. Ask a question below.")
 
 st.markdown('<div class="section-label">Ask a question</div>', unsafe_allow_html=True)
@@ -102,21 +113,24 @@ question = st.text_input(
     label_visibility="collapsed",
 )
 
-if question:
-    collection = db.get_or_create_collection("uploaded")
-    results = collection.query(query_texts=[question], n_results=8)
-    context = "\n\n".join(results["documents"][0])
-    instruction = (
-        "You are a helpful research assistant. Using ONLY the context below from a "
-        "research paper, answer the question clearly and in detail. If the answer is "
-        "not in the context, say you don't know."
-    )
-    prompt = instruction + "\n\nContext:\n" + context + "\n\nQuestion: " + question
+if question and "chunks" in st.session_state:
     with st.spinner("Thinking..."):
-        response = ai.models.generate_content(model="gemini-2.5-flash-lite", contents=prompt)
+        best = top_chunks(
+            question, st.session_state["chunks"], st.session_state["vectors"], 8
+        )
+        context = "\n\n".join(best)
+        instruction = (
+            "You are a helpful research assistant. Using ONLY the context below from a "
+            "research paper, answer the question clearly and in detail. If the answer is "
+            "not in the context, say you don't know."
+        )
+        prompt = instruction + "\n\nContext:\n" + context + "\n\nQuestion: " + question
+        response = ai.models.generate_content(model=CHAT_MODEL, contents=prompt)
     st.markdown('<div class="section-label">Answer</div>', unsafe_allow_html=True)
     with st.container(border=True):
         st.write(response.text)
     with st.expander("Sources"):
-        for i, chunk in enumerate(results["documents"][0]):
-            st.markdown("**" + str(i + 1) + ".** " + chunk[:300] + "...")
+        for i, c in enumerate(best):
+            st.markdown("**" + str(i + 1) + ".** " + c[:300] + "...")
+elif question:
+    st.warning("Please upload a PDF and click 'Process PDF' first.")

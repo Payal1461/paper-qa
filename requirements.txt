@@ -1,6 +1,5 @@
 streamlit
 google-genai
 python-dotenv
-chromadb
 pypdf
-pysqlite3-binary
+numpy
