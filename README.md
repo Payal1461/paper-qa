@@ -17,7 +17,7 @@ Built with **Retrieval-Augmented Generation (RAG)**.
 
 ---
 
-## 🧠 How it works (the RAG pipeline)
+## How it works (the RAG pipeline)
 
 1. **Read** — extracts the text from the uploaded PDF
 2. **Chunk** — splits the text into clean, sentence-aware pieces
@@ -27,7 +27,7 @@ Built with **Retrieval-Augmented Generation (RAG)**.
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Python**
 - **Google Gemini API** (`google-genai`) — embeddings + answer generation
@@ -37,7 +37,7 @@ Built with **Retrieval-Augmented Generation (RAG)**.
 
 ---
 
-## 🚀 Run it locally
+## Run it locally
 
 ```bash
 # 1. Clone the repo
@@ -62,6 +62,6 @@ Get a free Gemini API key at https://aistudio.google.com/apikey
 
 ---
 
-## 📚 What I learned
+## What I learned
 
 LLM APIs, embeddings, vector search, the full RAG pipeline, prompt design, handling API rate limits, and deploying a live web app.
