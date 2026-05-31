@@ -4,7 +4,7 @@ An AI web app that lets you **upload any research paper (PDF) and ask questions 
 
 Built with **Retrieval-Augmented Generation (RAG)**.
 
-🔗 **Live demo:** _add your Streamlit link here_
+🔗 **Live demo:** https://ask-my-paper.streamlit.app/
 
 ---
 
